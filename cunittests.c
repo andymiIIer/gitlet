@@ -133,6 +133,76 @@ void simple_log_test(void)
     free_commit_list(&commit_list);
 }
 
+/*
+* Simple test for rm. Tests whether calling rm multiple times on the same
+* file results in an error. Tests whether the file is removed from the 
+* output to stdout. Tests whether the number of line for rm is correct.
+* Tests whether rm only removes the file that it is called on.
+*/
+void rm_test(void) {
+    FILE *file1 = fopen("test1.txt", "w");
+    fclose(file1);
+    FILE *file2 = fopen("test2.txt", "w");
+    fclose(file2);
+    
+    int retval = beargit_init();
+    CU_ASSERT(0==retval);
+    retval = beargit_add("test1.txt");
+    CU_ASSERT(0==retval);
+    retval = beargit_add("test2.txt");
+    CU_ASSERT(0==retval);
+    retval = beargit_rm("test1.txt");
+    CU_ASSERT(0==retval);
+    retval = beargit_rm("test1.txt");
+    CU_ASSERT(1==retval);
+    
+    FILE *fstdout = fopen(".beargit/.index", "r");
+    CU_ASSERT_PTR_NOT_NULL(fstdout);
+    char line[FILENAME_SIZE];
+    int counter = 0;
+    int check = 0;
+    while (fgets(line, sizeof(line), fstdout)) {
+        strtok(line, "\n");
+        if (strcmp(line, "test2.txt") == 0) {
+            check = 1;
+        }
+        CU_ASSERT(!(strcmp(line, "test1.txt") == 0));
+        counter++;
+    }
+
+    CU_ASSERT(counter == 1);
+    CU_ASSERT(check);
+    CU_ASSERT(feof(fstdout));
+    fclose(fstdout);
+}
+
+/*
+* Simple test for add. Tests whether a file can be added
+* without error. Tests that the same file cannot be added
+* twice. Tests that add puts the correct file name onto the 
+* .index file. Tests that adding the same file twice does not 
+* it onto the .index file twice.
+*/
+void add_test(void) {
+    FILE *file = fopen("test.txt", "w");
+    fclose(file);
+   
+    int retval = beargit_init();
+    CU_ASSERT(0==retval);
+    retval = beargit_add("test.txt");
+    CU_ASSERT(0==retval);
+    retval = beargit_add("test.txt");
+    CU_ASSERT(3==retval);
+    
+    char line[512];
+    FILE *findex = fopen(".beargit/.index", "r");
+    fgets(line, sizeof(line), findex);
+    strtok(line, "\n");
+    CU_ASSERT(strcmp(line, "test.txt") == 0);
+    CU_ASSERT_PTR_NULL(fgets(line, sizeof(line), findex));
+    fclose(findex);
+}
+
 /* The main() function for setting up and running the tests.
  * Returns a CUE_SUCCESS on successful running, another
  * CUnit error code on failure.
@@ -141,6 +211,8 @@ int cunittester()
 {
    CU_pSuite pSuite = NULL;
    CU_pSuite pSuite2 = NULL;
+   CU_pSuite pSuite3 = NULL;   
+   CU_pSuite pSuite4 = NULL;
 
    /* initialize the CUnit test registry */
    if (CUE_SUCCESS != CU_initialize_registry())
@@ -172,6 +244,30 @@ int cunittester()
       CU_cleanup_registry();
       return CU_get_error();
    }
+   
+   pSuite3 = CU_add_suite("Suite_3", init_suite, clean_suite);
+   if (NULL == pSuite3) { 
+      CU_cleanup_registry();
+      return CU_get_error();
+   }
+
+   if (NULL == CU_add_test(pSuite3, "simple add test", add_test))
+   {
+      CU_cleanup_registry();
+      return CU_get_error();
+   }
+
+   pSuite4 = CU_add_suite("Suite_4", init_suite, clean_suite);
+   if (NULL == pSuite4) {
+      CU_cleanup_registry();
+      return CU_get_error();
+   }
+
+   if (NULL == CU_add_test(pSuite4, "simple rm test", rm_test))
+   {
+      CU_cleanup_registry();
+      return CU_get_error();
+   }
 
    /* Run all tests using the CUnit Basic interface */
    CU_basic_set_mode(CU_BRM_VERBOSE);
@@ -179,4 +275,3 @@ int cunittester()
    CU_cleanup_registry();
    return CU_get_error();
 }
-
